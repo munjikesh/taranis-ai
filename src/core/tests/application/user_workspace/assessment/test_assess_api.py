@@ -363,6 +363,15 @@ class TestAssessNewsItems(BaseTest):
         )
         assert response.status_code == 400
 
+        for field, oversized in (("name", {"name": "x" * 256, "tag_type": "endpoint"}), ("tag_type", {"name": "ok", "tag_type": "t" * 256})):
+            response = client.put(
+                f"{self.base_uri}/news-items/{item_id}/tags",
+                json=[{"name": "replacement", "tag_type": "endpoint"}, oversized],
+                headers=auth_header,
+            )
+            assert response.status_code == 400
+            assert response.get_json() == {"error": f"Invalid tags: {field}: String should have at most 255 characters"}
+
         item_response = self.assert_get_ok(client, f"news-items/{item_id}", auth_header)
         assert item_response.get_json()["tags"] == [{"name": tag_name, "tag_type": "endpoint"}]
 

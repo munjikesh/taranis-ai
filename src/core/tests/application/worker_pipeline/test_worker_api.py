@@ -811,6 +811,23 @@ class TestWorkerApi:
         assert {tag["name"]: tag["tag_type"] for tag in item["tags"]} == {"tag3": "misc", "tag4": "misc", "Microsoft": "ORG"}
         assert appended["revision"] == revision + 1
 
+    def test_worker_put_tags_length_limit(self, client, stories, api_header):
+        story_1_id = stories[0]
+        story_response = client.get(f"{self.base_uri}/stories", headers=api_header, query_string={"story_id": story_1_id})
+        news_item_id = story_response.get_json()[0]["news_items"][0]["id"]
+        boundary = "a" * 255
+
+        response = client.put(f"{self.base_uri}/tags", json={news_item_id: {"kept": "misc", boundary: boundary}}, headers=api_header)
+        assert response.status_code == 200
+
+        response = client.put(f"{self.base_uri}/tags", json={news_item_id: {"replacement": "misc", "b" * 256: "misc"}}, headers=api_header)
+        assert response.status_code == 207
+        assert response.get_json()["errors"] == {news_item_id: "Invalid tags: name: String should have at most 255 characters"}
+
+        story = client.get(f"{self.base_uri}/stories", headers=api_header, query_string={"story_id": story_1_id}).get_json()[0]
+        item = next(item for item in story["news_items"] if item["id"] == news_item_id)
+        assert {tag["name"]: tag["tag_type"] for tag in item["tags"]} == {"kept": "misc", boundary: boundary}
+
     def test_worker_put_tags_invalid_cases(self, client, stories, api_header):
         story_1_id = stories[0]
         story_response = client.get(f"{self.base_uri}/stories", headers=api_header, query_string={"story_id": story_1_id})

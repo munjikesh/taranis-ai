@@ -24,6 +24,13 @@ def validate_attribute(value: Any) -> Any:
 
 Attribute = Annotated[dict[str, Any], BeforeValidator(validate_attribute)]
 
+MAX_TAG_LENGTH = 255
+
+
+class NewsItemTag(TaranisBaseModel):
+    name: str = Field(max_length=MAX_TAG_LENGTH)
+    tag_type: str = Field(max_length=MAX_TAG_LENGTH)
+
 
 NEWS_ITEM_IMPORT_FIELDS = frozenset(
     {

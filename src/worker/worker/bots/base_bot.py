@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from urllib.parse import parse_qs
 
+from models.assess import NewsItemTag
 from niquests.exceptions import RequestException
+from pydantic import ValidationError
 from rq import Retry
 
 from worker.bot_api import BotTagSaveError
@@ -20,6 +22,19 @@ class BaseBot:
         self.story_revisions: dict[str, int] = {}
         self.saved_tag_items: dict[str, bool] = {}
         self.save_tag_state: Callable[[], None] | None = None
+
+    @staticmethod
+    def valid_tags(item_id: str, tags: dict[str, str]) -> dict[str, str]:
+        valid = {}
+        for name, tag_type in tags.items():
+            try:
+                NewsItemTag(name=name, tag_type=tag_type)
+            except ValidationError:
+                continue
+            valid[name] = tag_type
+        if skipped := len(tags) - len(valid):
+            logger.warning(f"Skipped {skipped} invalid tags for news item {item_id}")
+        return valid
 
     def save_tags(self, item_id: str, story_id: str, tags: dict | list) -> None:
         if self.save_tag_state and item_id in self.saved_tag_items:

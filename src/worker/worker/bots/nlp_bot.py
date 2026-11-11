@@ -42,9 +42,9 @@ class NLPBot(BaseBot):
         def upload_tags(index: int, result: NerResponse) -> None:
             item_id, story_id = items[index]
             logger.info(f"Saving NER for news item {item_id} ({index + 1}/{len(items)})")
-            self.save_tags(item_id, story_id, result.root)
+            self.save_tags(item_id, story_id, self.valid_tags(item_id, result.root))
 
         results = run_llm_tasks(tasks, self.llm_client, parameters, on_result=upload_tags)
         if isinstance(results, Retry):
             return results
-        return {item_id: result.root for (item_id, _), result in zip(items, results, strict=True)}
+        return {item_id: self.valid_tags(item_id, result.root) for (item_id, _), result in zip(items, results, strict=True)}

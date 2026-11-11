@@ -48,6 +48,19 @@ def test_ioc_bot(stories, story_get_mock, requests_mock):
     assert {item["id"]: result[item["id"]]} in [request.json() for request in uploads.request_history]
 
 
+def test_ioc_bot_skips_oversized_ioc(stories, requests_mock):
+    from worker import bots
+
+    item = {**stories[0]["news_items"][0], "content": f"See https://example.com/{'a' * 300} and CVE-2023-5678."}
+    requests_mock.get(f"{Config.TARANIS_CORE_URL}/worker/stories", json=[{**stories[0], "news_items": [item]}])
+    uploads = requests_mock.put(f"{Config.TARANIS_CORE_URL}/worker/tags?replace=false", json={"message": "Tags updated"})
+    result = bots.IOCBot().execute()
+
+    assert "CVE-2023-5678" in result[item["id"]]
+    assert all(len(name) <= 255 for name in result[item["id"]])
+    assert {item["id"]: result[item["id"]]} in [request.json() for request in uploads.request_history]
+
+
 @pytest.mark.parametrize("enabled", [True, False])
 def test_story_bot_clusters_via_library(stories, requests_mock, monkeypatch, enabled):
     from worker import bots
@@ -180,6 +193,23 @@ def test_nlp_bot(stories, story_get_mock, requests_mock):
         bots.NLPBot().execute({"llm_endpoint": endpoint})
         assert "Cybersecurity mode is enabled" in provider.call_args.args[1]
         assert provider.call_args.args[0].timeout == 42
+
+
+def test_nlp_bot_discards_oversized_tags_from_upload_and_result(stories, story_get_mock, requests_mock):
+    from worker import bots
+
+    endpoint = {"name": "NER", "base_url": "https://llm.test/v1"}
+    boundary = "a" * 255
+    output = {"Microsoft": "ORG", boundary: "ORG", "b" * 256: "ORG"}
+    uploads = requests_mock.put(f"{Config.TARANIS_CORE_URL}/worker/tags?replace=false", json={"message": "Tags updated"})
+    with patch.object(LLMClient, "create_response", autospec=True) as provider:
+        provider.return_value = {"output_text": json.dumps(output)}
+        result = bots.NLPBot().execute({"llm_endpoint": endpoint})
+
+    expected = {"Microsoft": "ORG", boundary: "ORG"}
+    assert result == {item["id"]: expected for story in stories for item in story["news_items"]}
+    assert uploads.called
+    assert all(upload.json() and set(next(iter(upload.json().values()))) == set(expected) for upload in uploads.request_history)
 
 
 @pytest.mark.parametrize("multiple_items", [True, False])

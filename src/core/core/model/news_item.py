@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import fuzzbite
 from models.assess import NewsItem as AssessNewsItem
+from models.assess import NewsItemTag as AssessNewsItemTag
 from models.assess import Story as AssessStory
 from models.assess import validate_bcp47
 from pydantic import ValidationError
@@ -445,8 +446,10 @@ class NewsItem(BaseModel):
     ) -> tuple[dict, int]:
         try:
             parsed_tags = NewsItemTag.parse_tags(incoming_tags)
-        except (TypeError, ValueError):
+        except TypeError:
             return {"error": "Invalid tags"}, 400
+        except ValidationError as exc:
+            return AssessNewsItemTag.validation_error_response(exc, prefix="Invalid tags"), 400
 
         if incoming_tags and not parsed_tags:
             return {"error": "No valid tags provided"}, 400

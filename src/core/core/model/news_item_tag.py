@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from models.assess import MAX_TAG_LENGTH
+from models.assess import NewsItemTag as AssessNewsItemTag
 from sqlalchemy import Index, func, literal_column, or_, select, tuple_
 from sqlalchemy.orm import Mapped, relationship
 
@@ -22,8 +24,8 @@ class NewsItemTag(BaseModel):
     )
 
     id: Mapped[str] = db.Column(db.String(UUID_STR_LENGTH), primary_key=True, default=BaseModel.uuid7_str)
-    name: Mapped[str] = db.Column(db.String(255))
-    tag_type: Mapped[str] = db.Column(db.String(255))
+    name: Mapped[str] = db.Column(db.String(MAX_TAG_LENGTH))
+    tag_type: Mapped[str] = db.Column(db.String(MAX_TAG_LENGTH))
     news_item_id: Mapped[str] = db.Column(
         db.String(UUID_STR_LENGTH), db.ForeignKey("news_item.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -33,10 +35,11 @@ class NewsItemTag(BaseModel):
         self.id = self.uuid7_str()
         if not isinstance(name, str):
             raise TypeError(f"Tag name must be a string, got {type(name)}")
-        self.name = name
         if not isinstance(tag_type, str):
             raise TypeError(f"Tag type must be a string, got {type(tag_type)}")
-        self.tag_type = tag_type
+        validated = AssessNewsItemTag(name=name, tag_type=tag_type)
+        self.name = validated.name
+        self.tag_type = validated.tag_type
 
     @classmethod
     def get_list(cls, filter_args: dict, user=None) -> list[dict[str, Any]]:
@@ -224,9 +227,9 @@ class NewsItemTagCluster(BaseModel):
     __tablename__ = "news_item_tag_cluster"
     __table_args__ = (Index("ix_news_item_tag_cluster_type_count", "tag_type_key", "story_count"),)
 
-    name: Mapped[str] = db.Column(db.String(255), primary_key=True)
-    tag_type_key: Mapped[str] = db.Column(db.String(255), primary_key=True)
-    tag_type: Mapped[str | None] = db.Column(db.String(255), nullable=True)
+    name: Mapped[str] = db.Column(db.String(MAX_TAG_LENGTH), primary_key=True)
+    tag_type_key: Mapped[str] = db.Column(db.String(MAX_TAG_LENGTH), primary_key=True)
+    tag_type: Mapped[str | None] = db.Column(db.String(MAX_TAG_LENGTH), nullable=True)
     news_item_count: Mapped[int] = db.Column(db.Integer, nullable=False, default=0)
     story_count: Mapped[int] = db.Column(db.Integer, nullable=False, default=0)
     last_story_created: Mapped[datetime | None] = db.Column(db.DateTime, nullable=True)
